@@ -48,9 +48,11 @@ func NewRouter(cfg *config.Config, db *sql.DB, supa *storage.SupabaseClient) htt
 	commentHandler := comments.NewHandler(commentService)
 
 	r.Route("/api", func(api chi.Router) {
+		// Users are public for now to allow easy bootstrapping via Postman.
+		userHandler.RegisterRoutes(api)
+
 		api.Group(func(priv chi.Router) {
 			priv.Use(auth)
-			userHandler.RegisterRoutes(priv)
 			paperHandler.RegisterRoutes(priv)
 			reviewHandler.RegisterRoutes(priv)
 			commentHandler.RegisterRoutes(priv)
