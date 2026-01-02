@@ -22,7 +22,7 @@ func NewPostgresRepository(db *sql.DB) Repository {
 func (r *PostgresRepository) Create(ctx context.Context, email string, role string) (*User, error) {
 	row := r.db.QueryRowContext(
 		ctx,
-		`INSERT INTO users (email, role) VALUES ($1, COALESCE(NULLIF($2, ''), DEFAULT)) RETURNING public_id, email, role, created_at`,
+		`INSERT INTO users (email, role) VALUES ($1, COALESCE(NULLIF($2, ''), 'user')) RETURNING public_id, email, role, created_at`,
 		email,
 		role,
 	)
