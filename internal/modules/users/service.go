@@ -13,6 +13,7 @@ type User struct {
 }
 
 type Service interface {
+	Create(ctx context.Context, email string, role string) (*User, error)
 	Get(ctx context.Context, id string) (*User, error)
 	List(ctx context.Context) ([]User, error)
 }
@@ -23,6 +24,10 @@ type service struct {
 
 func NewService(repo Repository) Service {
 	return &service{repo: repo}
+}
+
+func (s *service) Create(ctx context.Context, email string, role string) (*User, error) {
+	return s.repo.Create(ctx, email, role)
 }
 
 func (s *service) Get(ctx context.Context, id string) (*User, error) {
