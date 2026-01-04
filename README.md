@@ -40,6 +40,10 @@ go run ./cmd/server
 
 By default the API listens on `:8080` and exposes `GET /health` plus authenticated `/api/*` routes.
 
+### ~ DB Schema
+
+![Screenshot of DB Schema](/Screenshot.png)
+
 ## Notes
 
 - JWT verification expects HMAC with `JWT_SECRET`; adapt to Supabase JWT rules as needed.
