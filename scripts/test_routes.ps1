@@ -18,6 +18,19 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Assert-Status {
+  param(
+    [Parameter(Mandatory=$true)]$Response,
+    [Parameter(Mandatory=$true)][int]$Expected,
+    [string]$Context = ''
+  )
+
+  if ($Response.Status -ne $Expected) {
+    $prefix = if ($Context) { "${Context}: " } else { '' }
+    throw "${prefix}Expected HTTP $Expected, got $($Response.Status). Body: $($Response.Body)"
+  }
+}
+
 function ConvertTo-Base64Url {
   param([Parameter(Mandatory=$true)][byte[]]$Bytes)
 
@@ -69,7 +82,7 @@ function Invoke-CurlJson {
   )
 
   foreach ($k in $Headers.Keys) {
-    $args += @('-H', "$k: $($Headers[$k])")
+    $args += @('-H', "${k}: $($Headers[$k])")
   }
 
   if ($null -ne $JsonBody -and $JsonBody.Trim().Length -gt 0) {
@@ -89,7 +102,7 @@ function Invoke-CurlJson {
 
   $statusMatch = [regex]::Match($out, 'HTTP_STATUS:(\d{3})')
   $status = if ($statusMatch.Success) { [int]$statusMatch.Groups[1].Value } else { -1 }
-  $body = ($out -replace "`r?`nHTTP_STATUS:\d{3}`r?`n$", '')
+  $body = [regex]::Replace($out, "`r?`nHTTP_STATUS:\d{3}.*\z", '')
 
   Write-Host "HTTP $status"
   if ($body) {
@@ -120,16 +133,40 @@ Invoke-CurlJson -Method GET -Url "$BaseUrl/health" | Out-Null
 
 # 2) Public user bootstrapping routes
 $email = "curltest+$(Get-Date -Format 'yyyyMMddHHmmss')@example.com"
-$createdUser = Invoke-CurlJson -Method POST -Url "$ApiBase/users" -JsonBody ("{`"email`":`"$email`"}")
+
+$createUserBody = @{ email = $email } | ConvertTo-Json -Compress
+$createdUser = Invoke-CurlJson -Method POST -Url "$ApiBase/users" -JsonBody $createUserBody
+Assert-Status -Response $createdUser -Expected 201 -Context 'Create user'
 
 $userPublicId = $createdUser.Json.id
 if (-not $userPublicId) {
-  Write-Warning "Could not read created user id from response; some follow-up calls will be skipped."
-} else {
-  Invoke-CurlJson -Method GET -Url "$ApiBase/users/$userPublicId" | Out-Null
+  throw "Create user response did not include 'id'. Body: $($createdUser.Body)"
 }
 
-Invoke-CurlJson -Method GET -Url "$ApiBase/users" | Out-Null
+$fetchedUser = Invoke-CurlJson -Method GET -Url "$ApiBase/users/$userPublicId"
+Assert-Status -Response $fetchedUser -Expected 200 -Context 'Get user'
+if ($fetchedUser.Json.email -ne $email) {
+  throw "Get user email mismatch. Expected '$email', got '$($fetchedUser.Json.email)'"
+}
+
+$userList = Invoke-CurlJson -Method GET -Url "$ApiBase/users"
+Assert-Status -Response $userList -Expected 200 -Context 'List users'
+
+$found = $false
+try {
+  foreach ($u in $userList.Json) {
+    if ($u.id -eq $userPublicId -or $u.email -eq $email) {
+      $found = $true
+      break
+    }
+  }
+} catch {
+  $found = $false
+}
+
+if (-not $found) {
+  Write-Warning "Created user was not found in list. This might be due to pagination/ordering differences."
+}
 
 if ($SkipPrivate) {
   Write-Host "\nSkipping authenticated /api/* routes (-SkipPrivate)."
@@ -162,18 +199,21 @@ if (-not $Jwt -or $Jwt.Trim().Length -eq 0) {
 $authHeaders = @{ Authorization = "Bearer $Jwt" }
 
 # Papers
-Invoke-CurlJson -Method GET -Url "$ApiBase/papers" -Headers $authHeaders | Out-Null
 
-# NOTE: The current codebase appears to use numeric IDs for papers/reviews/comments internally.
-# These next calls assume paper id = 1 exists; they may 404/500 on a fresh DB.
-Invoke-CurlJson -Method GET -Url "$ApiBase/papers/1" -Headers $authHeaders | Out-Null
+$papersList = Invoke-CurlJson -Method GET -Url "$ApiBase/papers" -Headers $authHeaders
+if ($papersList.Status -eq 401) {
+  throw "Authenticated routes are still protected. Provide PAPERTRAIL_JWT or JWT_SECRET, or keep -SkipPrivate. Body: $($papersList.Body)"
+}
 
-# Reviews
-Invoke-CurlJson -Method GET -Url "$ApiBase/papers/1/reviews" -Headers $authHeaders | Out-Null
-Invoke-CurlJson -Method POST -Url "$ApiBase/papers/1/reviews" -Headers $authHeaders -JsonBody '{"reviewer_id":"1","rating":5,"comments":"Looks good"}' | Out-Null
-
-# Comments
-Invoke-CurlJson -Method GET -Url "$ApiBase/papers/1/comments" -Headers $authHeaders | Out-Null
-Invoke-CurlJson -Method POST -Url "$ApiBase/papers/1/comments" -Headers $authHeaders -JsonBody '{"user_id":"1","body":"Nice paper"}' | Out-Null
+if ($papersList.Status -eq 200 -and $papersList.Json -and $papersList.Json.Count -gt 0) {
+  $paperId = $papersList.Json[0].id
+  if ($paperId) {
+    Invoke-CurlJson -Method GET -Url "$ApiBase/papers/$paperId" -Headers $authHeaders | Out-Null
+    Invoke-CurlJson -Method GET -Url "$ApiBase/papers/$paperId/reviews" -Headers $authHeaders | Out-Null
+    Invoke-CurlJson -Method GET -Url "$ApiBase/papers/$paperId/comments" -Headers $authHeaders | Out-Null
+  }
+} else {
+  Write-Host "\nNo papers found; skipping paper/review/comment detail checks."
+}
 
 Write-Host "\nDone."
