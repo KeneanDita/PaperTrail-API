@@ -17,10 +17,15 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) RegisterRoutes(r chi.Router) {
-	r.Post("/papers", h.create)
+// RegisterPublicRoutes exposes read-only endpoints that do not require auth.
+func (h *Handler) RegisterPublicRoutes(r chi.Router) {
 	r.Get("/papers", h.list)
 	r.Get("/papers/{id}", h.get)
+}
+
+// RegisterProtectedRoutes exposes endpoints that require auth.
+func (h *Handler) RegisterProtectedRoutes(r chi.Router) {
+	r.Post("/papers", h.create)
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
