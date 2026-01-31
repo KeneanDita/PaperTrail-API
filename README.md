@@ -1,25 +1,69 @@
-# PaperTrail API
+# PaperTrail (API + UI)
 
-A lightweight Go starter for the PaperTrail API with modular folders, Postgres migrations, JWT auth, and Supabase storage hooks.
+PaperTrail is a small Go API (Postgres + migrations + JWT auth) and a Next.js UI for managing papers, reviews, and comments.
 
 ## Quick start
 
-1. Copy `.env.example` to `.env` and fill values.
-2. Run Postgres locally and create the database.
-3. Run migrations automatically via `go run ./cmd/server` (they execute at boot).
+### 1) Configure environment
 
-.env.example
+Create a `.env` in the repo root (see the example below).
 
-```.
+```dotenv
 APP_PORT=8080
 ENV=development
-DATABASE_URL=
+DATABASE_URL=postgres://postgres:password@localhost:5432/papertrail?sslmode=disable
 JWT_SECRET=super-secret-jwt-key
 SUPABASE_URL=
 SUPABASE_KEY=
-SUPABASE_BUCKET=
-
+SUPABASE_BUCKET=papers
 ```
+
+### 2) Start the API
+
+```bash
+go run ./cmd/server
+```
+
+Default: `http://localhost:8080`
+
+- `GET /health` (no auth)
+- `POST /api/papers` (auth)
+- `POST /api/papers/{id}/reviews` (auth)
+- `POST /api/papers/{id}/comments` (auth)
+- `GET /api/users` + `POST /api/users` are currently public for easy bootstrapping
+
+### 3) Start the UI
+
+```bash
+npm --prefix ui install
+npm --prefix ui run dev
+```
+
+Default: `http://localhost:3000`
+
+The UI talks to the API at:
+
+- `NEXT_PUBLIC_API_BASE_URL` (optional), otherwise
+- a user-configurable localStorage value, otherwise
+- defaults to `http://localhost:8080`
+
+## Public pages / endpoints
+
+To support a lightweight public view, the API exposes unauthenticated read-only paper endpoints:
+
+- `GET /api/papers`
+- `GET /api/papers/{id}`
+
+And the UI includes:
+
+- `GET /public/papers` (lists papers without a JWT)
+- `GET /public/papers/{id}` (paper details without a JWT)
+
+## Auth notes
+
+- Protected endpoints require `Authorization: Bearer <JWT>`.
+- JWTs are validated as HS256 using `JWT_SECRET`.
+- The middleware reads `sub` and `role` claims (role gates are used by some endpoints).
 
 ## Project layout
 
@@ -34,11 +78,17 @@ SUPABASE_BUCKET=
 
 ## Running
 
+API:
+
 ```bash
 go run ./cmd/server
 ```
 
-By default the API listens on `:8080` and exposes `GET /health` plus authenticated `/api/*` routes.
+UI:
+
+```bash
+npm --prefix ui run dev
+```
 
 ### ~ DB Schema
 
