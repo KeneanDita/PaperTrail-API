@@ -2,6 +2,8 @@
 
 PaperTrail is a small Go API (Postgres + migrations + JWT auth) and a Next.js UI for managing papers, reviews, and comments.
 
+![Screenshot of running session](/1.png)
+
 ## Quick start
 
 ### 1) Configure environment
