@@ -12,6 +12,7 @@ type Config struct {
 	Environment    string
 	DatabaseURL    string
 	JWTSecret      string
+	CORSOrigins    string
 	SupabaseURL    string
 	SupabaseKey    string
 	SupabaseBucket string
@@ -25,6 +26,7 @@ func Load() (*Config, error) {
 		Environment:    getEnv("ENV", "development"),
 		DatabaseURL:    os.Getenv("DATABASE_URL"),
 		JWTSecret:      os.Getenv("JWT_SECRET"),
+		CORSOrigins:    getEnv("CORS_ALLOW_ORIGINS", "*"),
 		SupabaseURL:    os.Getenv("SUPABASE_URL"),
 		SupabaseKey:    os.Getenv("SUPABASE_KEY"),
 		SupabaseBucket: getEnv("SUPABASE_BUCKET", "papers"),
