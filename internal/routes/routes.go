@@ -20,7 +20,7 @@ import (
 
 func NewRouter(cfg *config.Config, db *sql.DB, supa *storage.SupabaseClient) http.Handler {
 	r := chi.NewRouter()
-	r.Use(chimw.RequestID, chimw.RealIP, chimw.Recoverer, middleware.Logger)
+	r.Use(chimw.RequestID, chimw.RealIP, chimw.Recoverer, middleware.CORS(cfg.CORSOrigins), middleware.Logger)
 
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		utils.RespondJSON(w, http.StatusOK, map[string]interface{}{
@@ -51,9 +51,12 @@ func NewRouter(cfg *config.Config, db *sql.DB, supa *storage.SupabaseClient) htt
 		// Users are public for now to allow easy bootstrapping via Postman.
 		userHandler.RegisterRoutes(api)
 
+		// Public (read-only) papers endpoints.
+		paperHandler.RegisterPublicRoutes(api)
+
 		api.Group(func(priv chi.Router) {
 			priv.Use(auth)
-			paperHandler.RegisterRoutes(priv)
+			paperHandler.RegisterProtectedRoutes(priv)
 			reviewHandler.RegisterRoutes(priv)
 			commentHandler.RegisterRoutes(priv)
 		})
